@@ -1,6 +1,7 @@
 # -*- coding: utf_8 -*-
 from django.shortcuts import render
 from django.http import HttpResponse
+from django.http import JsonResponse
 from .forms import UploadFileForm
 from django.conf import settings
 import os, hashlib, platform, json,shutil
@@ -18,7 +19,7 @@ def index(request):
     return render(request,template,context)
 def handle_uploaded_file(f,typ):
     DIR = settings.BASE_DIR
-    md5 = hashlib.md5() #modify if crash for large 
+    md5 = hashlib.md5() #modify if crash for large
     for chunk in f.chunks():
         md5.update(chunk)
     md5sum = md5.hexdigest()
@@ -27,7 +28,7 @@ def handle_uploaded_file(f,typ):
         os.makedirs(ANAL_DIR)
     with open(ANAL_DIR+ md5sum+typ, 'wb+') as destination:
         for chunk in f.chunks():
-            destination.write(chunk) 
+            destination.write(chunk)
     return md5sum
 
 def Upload(request):
@@ -69,7 +70,9 @@ def Upload(request):
         response_data['description'] = 'Method not Supported!'
         response_data['status'] = 'error'
         form = UploadFileForm()
-    r= HttpResponse(json.dumps(response_data),content_type="application/json")
+
+
+    r= JsonResponse(response_data)
     r['Access-Control-Allow-Origin']='*'
     return r
 def about(request):
