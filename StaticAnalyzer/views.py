@@ -2,6 +2,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.http import HttpResponse
+from django.http import JsonResponse
 from django.template.loader import get_template
 from StaticAnalyzer.models import StaticAnalyzerAndroid,StaticAnalyzerIPA,StaticAnalyzerIOSZIP
 from django.conf import settings
@@ -19,6 +20,13 @@ try:
     StringIO = StringIO.StringIO
 except Exception:
     from io import StringIO
+
+PERMISSION_SEVERITY_LOOKUP_TABLE = {
+    "dangerous"         : "danger",
+    "normal"            : "normal",
+    "signatureOrSystem" : "warning",
+    "signature"         : "safe"
+}
 
 def PDF(request):
     try:
@@ -129,20 +137,20 @@ def PDF(request):
                         }
                         template= get_template("ios_source_analysis_pdf.html")
             else:
-                return HttpResponseRedirect('/error/') 
+                return HttpResponseRedirect('/error/')
             html  = template.render(context)
             result = StringIO()
             pdf = pisa.pisaDocument(StringIO( "{0}".format(html.encode('utf-8'))), result)
             if not pdf.err:
                 return HttpResponse(result.getvalue(), content_type='application/pdf')
             else:
-                return HttpResponseRedirect('/error/') 
+                return HttpResponseRedirect('/error/')
         else:
-            return HttpResponseRedirect('/error/') 
+            return HttpResponseRedirect('/error/')
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         print "\n[ERROR] PDF Report Generation Error - "+str(e) + " Line: "+str(exc_tb.tb_lineno)
-        return HttpResponseRedirect('/error/') 
+        return HttpResponseRedirect('/error/')
         pass
 
 def Java(request):
@@ -238,7 +246,7 @@ def Search(request):
                             dat=f.read()
                         if q in dat:
                             matches.append("<a href='../ViewSource/?file="+escape(fileparam)+"&md5="+MD5+"&type=apk'>"+escape(fileparam)+"</a>")
-        flz=len(matches)   
+        flz=len(matches)
         context = {'title': 'Search Results',
         'matches': matches,
         'term': q,
@@ -248,7 +256,7 @@ def Search(request):
         return render(request,template,context)
     except Exception as e:
         print "[ERROR] Searching Failed - " + str(e)
-        return HttpResponseRedirect('/error/')     
+        return HttpResponseRedirect('/error/')
 def ViewSource(request):
     try:
         fil=''
@@ -327,176 +335,39 @@ def StaticAnalyzer(request):
             APP_DIR=os.path.join(DIR,'uploads/'+MD5+'/') #APP DIRECTORY
             TOOLS_DIR=os.path.join(DIR, 'StaticAnalyzer/tools/')  #TOOLS DIR
             print "[INFO] Starting Analysis on : "+APP_NAME
-            RESCAN= str(request.GET.get('rescan', 0))
+
             if TYP=='apk':
-                #Check if in DB
-                DB=StaticAnalyzerAndroid.objects.filter(MD5=MD5)
-                if DB.exists() and RESCAN=='0':
-                    print "\n[INFO] Analysis is already Done. Fetching data from the DB..."
-                    context = {
-                    'title' : DB[0].TITLE,
-                    'name' : DB[0].APP_NAME,
-                    'size' : DB[0].SIZE,
-                    'md5': DB[0].MD5,
-                    'sha1' : DB[0].SHA1,
-                    'sha256' : DB[0].SHA256,
-                    'packagename' : DB[0].PACKAGENAME,
-                    'mainactivity' : DB[0].MAINACTIVITY,
-                    'targetsdk' : DB[0].TARGET_SDK,
-                    'maxsdk' : DB[0].MAX_SDK,
-                    'minsdk' : DB[0].MIN_SDK,
-                    'androvername' : DB[0].ANDROVERNAME,
-                    'androver': DB[0].ANDROVER,
-                    'manifest': DB[0].MANIFEST_ANAL,
-                    'permissions' : DB[0].PERMISSIONS,
-                    'files' : python_list(DB[0].FILES),
-                    'certz' : DB[0].CERTZ,
-                    'activities' : python_list(DB[0].ACTIVITIES),
-                    'receivers' : python_list(DB[0].RECEIVERS),
-                    'providers' : python_list(DB[0].PROVIDERS),
-                    'services' : python_list(DB[0].SERVICES),
-                    'libraries' : python_list(DB[0].LIBRARIES),
-                    'act_count' : DB[0].CNT_ACT,
-                    'prov_count' : DB[0].CNT_PRO,
-                    'serv_count' : DB[0].CNT_SER,
-                    'bro_count' : DB[0].CNT_BRO,
-                    'certinfo': DB[0].CERT_INFO,
-                    'native' : DB[0].NATIVE,
-                    'dynamic' : DB[0].DYNAMIC,
-                    'reflection' : DB[0].REFLECT,
-                    'crypto': DB[0].CRYPTO,
-                    'obfus': DB[0].OBFUS,
-                    'api': DB[0].API,
-                    'dang': DB[0].DANG,
-                    'urls': DB[0].URLS,
-                    'emails': DB[0].EMAILS,
-                    'strings': python_list(DB[0].STRINGS),
-                    'zipped' : DB[0].ZIPPED,
-                    'mani': DB[0].MANI
-                    }
-                else:
-                    APP_FILE=MD5 + '.apk'        #NEW FILENAME
-                    APP_PATH=APP_DIR+APP_FILE    #APP PATH
-                    #ANALYSIS BEGINS
-                    SIZE=str(FileSize(APP_PATH)) + 'MB'   #FILE SIZE
-                    SHA1, SHA256= HashGen(APP_PATH)       #SHA1 & SHA256 HASHES
-        
-                    FILES=Unzip(APP_PATH,APP_DIR)
-                    CERTZ = GetHardcodedCert(FILES)
-                    print "[INFO] APK Extracted"
-                    PARSEDXML= GetManifest(APP_DIR,TOOLS_DIR,'',True) #Manifest XML
-                    MANI='../ManifestView/?md5='+MD5+'&type=apk&bin=1'
-                    SERVICES,ACTIVITIES,RECEIVERS,PROVIDERS,LIBRARIES,PERM,PACKAGENAME,MAINACTIVITY,MIN_SDK,MAX_SDK,TARGET_SDK,ANDROVER,ANDROVERNAME=ManifestData(PARSEDXML,APP_DIR)
-                    MANIFEST_ANAL,EXPORTED_ACT=ManifestAnalysis(PARSEDXML,MAINACTIVITY)
-                    PERMISSIONS=FormatPermissions(PERM)
-                    CNT_ACT =len(ACTIVITIES)
-                    CNT_PRO =len(PROVIDERS)
-                    CNT_SER =len(SERVICES)
-                    CNT_BRO = len(RECEIVERS)
-        
-                    CERT_INFO=CertInfo(APP_DIR,TOOLS_DIR)
-                    Dex2Jar(APP_DIR,TOOLS_DIR)
-                    Dex2Smali(APP_DIR,TOOLS_DIR)
-                    Jar2Java(APP_DIR,TOOLS_DIR)
-        
-                    API,DANG,URLS,EMAILS,CRYPTO,OBFUS,REFLECT,DYNAMIC,NATIVE=CodeAnalysis(APP_DIR,MD5,PERMISSIONS,"apk")
-                    print "\n[INFO] Generating Java and Smali Downloads"
-                    GenDownloads(APP_DIR,MD5)
-                    STRINGS=Strings(APP_FILE,APP_DIR,TOOLS_DIR)
-                    ZIPPED='&type=apk'
-    
-                    print "\n[INFO] Connecting to Database"
-                    try:
-                        #SAVE TO DB
-                        if RESCAN=='1':
-                            print "\n[INFO] Updating Database..."
-                            StaticAnalyzerAndroid.objects.filter(MD5=MD5).update(TITLE = 'Static Analysis',
-                            APP_NAME = APP_NAME,
-                            SIZE = SIZE,
-                            MD5= MD5,
-                            SHA1 = SHA1,
-                            SHA256 = SHA256,
-                            PACKAGENAME = PACKAGENAME,
-                            MAINACTIVITY= MAINACTIVITY,
-                            TARGET_SDK = TARGET_SDK,
-                            MAX_SDK = MAX_SDK,
-                            MIN_SDK = MIN_SDK,
-                            ANDROVERNAME = ANDROVERNAME,
-                            ANDROVER= ANDROVER,
-                            MANIFEST_ANAL= MANIFEST_ANAL,
-                            PERMISSIONS = PERMISSIONS,
-                            FILES = FILES,
-                            CERTZ = CERTZ,
-                            ACTIVITIES = ACTIVITIES,
-                            RECEIVERS = RECEIVERS,
-                            PROVIDERS = PROVIDERS,
-                            SERVICES = SERVICES,
-                            LIBRARIES = LIBRARIES,
-                            CNT_ACT = CNT_ACT,
-                            CNT_PRO = CNT_PRO,
-                            CNT_SER = CNT_SER,
-                            CNT_BRO = CNT_BRO,
-                            CERT_INFO= CERT_INFO,
-                            NATIVE = NATIVE,
-                            DYNAMIC = DYNAMIC,
-                            REFLECT = REFLECT,
-                            CRYPTO= CRYPTO,
-                            OBFUS= OBFUS,
-                            API= API,
-                            DANG= DANG,
-                            URLS= URLS,
-                            EMAILS= EMAILS,
-                            STRINGS= STRINGS,
-                            ZIPPED= ZIPPED,
-                            MANI= MANI,
-                            EXPORTED_ACT=EXPORTED_ACT)
-                        elif RESCAN=='0':
-                            print "\n[INFO] Saving to Database"
-                            STATIC_DB=StaticAnalyzerAndroid(TITLE = 'Static Analysis',
-                            APP_NAME = APP_NAME,
-                            SIZE = SIZE,
-                            MD5= MD5,
-                            SHA1 = SHA1,
-                            SHA256 = SHA256,
-                            PACKAGENAME = PACKAGENAME,
-                            MAINACTIVITY= MAINACTIVITY,
-                            TARGET_SDK = TARGET_SDK,
-                            MAX_SDK = MAX_SDK,
-                            MIN_SDK = MIN_SDK,
-                            ANDROVERNAME = ANDROVERNAME,
-                            ANDROVER= ANDROVER,
-                            MANIFEST_ANAL= MANIFEST_ANAL,
-                            PERMISSIONS = PERMISSIONS,
-                            FILES = FILES,
-                            CERTZ = CERTZ,
-                            ACTIVITIES = ACTIVITIES,
-                            RECEIVERS = RECEIVERS,
-                            PROVIDERS = PROVIDERS,
-                            SERVICES = SERVICES,
-                            LIBRARIES = LIBRARIES,
-                            CNT_ACT = CNT_ACT,
-                            CNT_PRO = CNT_PRO,
-                            CNT_SER = CNT_SER,
-                            CNT_BRO = CNT_BRO,
-                            CERT_INFO= CERT_INFO,
-                            NATIVE = NATIVE,
-                            DYNAMIC = DYNAMIC,
-                            REFLECT = REFLECT,
-                            CRYPTO= CRYPTO,
-                            OBFUS= OBFUS,
-                            API= API,
-                            DANG= DANG,
-                            URLS= URLS,
-                            EMAILS= EMAILS,
-                            STRINGS= STRINGS,
-                            ZIPPED= ZIPPED,
-                            MANI= MANI,
-                            EXPORTED_ACT=EXPORTED_ACT)
-                            STATIC_DB.save()
-                    except Exception as e:
-                        print "\n[ERROR] Saving to Database Failed - "+str(e)
-                        pass
-                    context = {
+                APP_FILE=MD5 + '.apk'        #NEW FILENAME
+                APP_PATH=APP_DIR+APP_FILE    #APP PATH
+                #ANALYSIS BEGINS
+                SIZE=str(FileSize(APP_PATH)) + 'MB'   #FILE SIZE
+                SHA1, SHA256= HashGen(APP_PATH)       #SHA1 & SHA256 HASHES
+
+                FILES=Unzip(APP_PATH,APP_DIR)
+                CERTZ = GetHardcodedCert(FILES)
+                print "[INFO] APK Extracted"
+                PARSEDXML= GetManifest(APP_DIR,TOOLS_DIR,'',True) #Manifest XML
+
+                SERVICES,ACTIVITIES,RECEIVERS,PROVIDERS,LIBRARIES,PERM,PACKAGENAME,MAINACTIVITY,MIN_SDK,MAX_SDK,TARGET_SDK,ANDROVER,ANDROVERNAME=ManifestData(PARSEDXML,APP_DIR)
+                MANIFEST_ANAL,EXPORTED_ACT=ManifestAnalysis(PARSEDXML,MAINACTIVITY)
+                PERMISSIONS, OUTPUT_PERMISSIONS=FormatPermissions(PERM)
+                CNT_ACT =len(ACTIVITIES)
+                CNT_PRO =len(PROVIDERS)
+                CNT_SER =len(SERVICES)
+                CNT_BRO = len(RECEIVERS)
+
+                # CERT_INFO=CertInfo(APP_DIR,TOOLS_DIR)
+                Dex2Jar(APP_DIR,TOOLS_DIR)
+                Dex2Smali(APP_DIR,TOOLS_DIR)
+                Jar2Java(APP_DIR,TOOLS_DIR)
+
+                API,DANG,URLS,EMAILS,CRYPTO,OBFUS,REFLECT,DYNAMIC,NATIVE=CodeAnalysis(APP_DIR,MD5,PERMISSIONS,"apk")
+                # print "\n[INFO] Generating Java and Smali Downloads"
+                # GenDownloads(APP_DIR,MD5)
+                STRINGS=Strings(APP_FILE,APP_DIR,TOOLS_DIR)
+                ZIPPED='&type=apk'
+
+                context = {
                     'title' : 'Static Analysis',
                     'name' : APP_NAME,
                     'size' : SIZE,
@@ -511,8 +382,8 @@ def StaticAnalyzer(request):
                     'androvername' : ANDROVERNAME,
                     'androver': ANDROVER,
                     'manifest': MANIFEST_ANAL,
-                    'permissions' : PERMISSIONS,
-                    'files' : FILES,
+                    'permissions' : OUTPUT_PERMISSIONS,
+                    # 'files' : FILES,
                     'certz' : CERTZ,
                     'activities' : ACTIVITIES,
                     'receivers' : RECEIVERS,
@@ -523,7 +394,7 @@ def StaticAnalyzer(request):
                     'prov_count' : CNT_PRO,
                     'serv_count' : CNT_SER,
                     'bro_count' : CNT_BRO,
-                    'certinfo': CERT_INFO,
+                    # 'certinfo': CERT_INFO,
                     'native' : NATIVE,
                     'dynamic' : DYNAMIC,
                     'reflection' : REFLECT,
@@ -533,216 +404,12 @@ def StaticAnalyzer(request):
                     'dang': DANG,
                     'urls': URLS,
                     'emails': EMAILS,
-                    'strings': STRINGS,
-                    'zipped' : ZIPPED,
-                    'mani': MANI
-                    }
-                template="static_analysis.html"
-                return render(request,template,context)
-            elif TYP=='zip':
-                #Check if in DB
-                DB=StaticAnalyzerAndroid.objects.filter(MD5=MD5)
-                if DB.exists() and RESCAN=='0':
-                    print "\n[INFO] Analysis is already Done. Fetching data from the DB..."
-                    context = {
-                    'title' : DB[0].TITLE,
-                    'name' : DB[0].APP_NAME,
-                    'size' : DB[0].SIZE,
-                    'md5': DB[0].MD5,
-                    'sha1' : DB[0].SHA1,
-                    'sha256' : DB[0].SHA256,
-                    'packagename' : DB[0].PACKAGENAME,
-                    'mainactivity' : DB[0].MAINACTIVITY,
-                    'targetsdk' : DB[0].TARGET_SDK,
-                    'maxsdk' : DB[0].MAX_SDK,
-                    'minsdk' : DB[0].MIN_SDK,
-                    'androvername' : DB[0].ANDROVERNAME,
-                    'androver': DB[0].ANDROVER,
-                    'manifest': DB[0].MANIFEST_ANAL,
-                    'permissions' : DB[0].PERMISSIONS,
-                    'files' : python_list(DB[0].FILES),
-                    'certz' : DB[0].CERTZ,
-                    'activities' : python_list(DB[0].ACTIVITIES),
-                    'receivers' : python_list(DB[0].RECEIVERS),
-                    'providers' : python_list(DB[0].PROVIDERS),
-                    'services' : python_list(DB[0].SERVICES),
-                    'libraries' : python_list(DB[0].LIBRARIES),
-                    'act_count' : DB[0].CNT_ACT,
-                    'prov_count' : DB[0].CNT_PRO,
-                    'serv_count' : DB[0].CNT_SER,
-                    'bro_count' : DB[0].CNT_BRO,
-                    'native' : DB[0].NATIVE,
-                    'dynamic' : DB[0].DYNAMIC,
-                    'reflection' : DB[0].REFLECT,
-                    'crypto': DB[0].CRYPTO,
-                    'obfus': DB[0].OBFUS,
-                    'api': DB[0].API,
-                    'dang': DB[0].DANG,
-                    'urls': DB[0].URLS,
-                    'emails': DB[0].EMAILS,
-                    'mani': DB[0].MANI
-                    }
-                else:
-                    APP_FILE=MD5 + '.zip'        #NEW FILENAME
-                    APP_PATH=APP_DIR+APP_FILE    #APP PATH
-                    print "[INFO] Extracting ZIP"
-                    FILES = Unzip(APP_PATH,APP_DIR)
-                    CERTZ = GetHardcodedCert(FILES)
-                    #Check if Valid Directory Structure and get ZIP Type
-                    pro_type,Valid=ValidAndroidZip(APP_DIR)
-                    print "[INFO] ZIP Type - " + pro_type
-                    if Valid and (pro_type=='eclipse' or pro_type=='studio'):
-                        #ANALYSIS BEGINS
-                        SIZE=str(FileSize(APP_PATH)) + 'MB'   #FILE SIZE
-                        SHA1,SHA256= HashGen(APP_PATH)        #SHA1 & SHA256 HASHES
-                        PARSEDXML= GetManifest(APP_DIR,TOOLS_DIR,pro_type,False)   #Manifest XML
-                        MANI='../ManifestView/?md5='+MD5+'&type='+pro_type+'&bin=0'
-                        SERVICES,ACTIVITIES,RECEIVERS,PROVIDERS,LIBRARIES,PERM,PACKAGENAME,MAINACTIVITY,MIN_SDK,MAX_SDK,TARGET_SDK,ANDROVER,ANDROVERNAME=ManifestData(PARSEDXML,APP_DIR)
-                        MANIFEST_ANAL,EXPORTED_ACT=ManifestAnalysis(PARSEDXML,MAINACTIVITY)
-                        PERMISSIONS=FormatPermissions(PERM)
-                        CNT_ACT =len(ACTIVITIES)
-                        CNT_PRO =len(PROVIDERS)
-                        CNT_SER =len(SERVICES)
-                        CNT_BRO = len(RECEIVERS)
-                        API,DANG,URLS,EMAILS,CRYPTO,OBFUS,REFLECT,DYNAMIC,NATIVE=CodeAnalysis(APP_DIR,MD5,PERMISSIONS,pro_type)
-                        print "\n[INFO] Connecting to Database"
-                        try:
-                            #SAVE TO DB
-                            if RESCAN=='1':
-                                print "\n[INFO] Updating Database..."
-                                StaticAnalyzerAndroid.objects.filter(MD5=MD5).update(TITLE = 'Static Analysis',
-                                APP_NAME = APP_NAME,
-                                SIZE = SIZE,
-                                MD5= MD5,
-                                SHA1 = SHA1,
-                                SHA256 = SHA256,
-                                PACKAGENAME = PACKAGENAME,
-                                MAINACTIVITY= MAINACTIVITY,
-                                TARGET_SDK = TARGET_SDK,
-                                MAX_SDK = MAX_SDK,
-                                MIN_SDK = MIN_SDK,
-                                ANDROVERNAME = ANDROVERNAME,
-                                ANDROVER= ANDROVER,
-                                MANIFEST_ANAL= MANIFEST_ANAL,
-                                PERMISSIONS = PERMISSIONS,
-                                FILES = FILES,
-                                CERTZ = CERTZ,
-                                ACTIVITIES = ACTIVITIES,
-                                RECEIVERS = RECEIVERS,
-                                PROVIDERS = PROVIDERS,
-                                SERVICES = SERVICES,
-                                LIBRARIES = LIBRARIES,
-                                CNT_ACT = CNT_ACT,
-                                CNT_PRO = CNT_PRO,
-                                CNT_SER = CNT_SER,
-                                CNT_BRO = CNT_BRO,
-                                CERT_INFO= "",
-                                NATIVE = NATIVE,
-                                DYNAMIC = DYNAMIC,
-                                REFLECT = REFLECT,
-                                CRYPTO= CRYPTO,
-                                OBFUS= OBFUS,
-                                API= API,
-                                DANG= DANG,
-                                URLS= URLS,
-                                EMAILS= EMAILS,
-                                STRINGS= "",
-                                ZIPPED= "",
-                                MANI= MANI,
-                                EXPORTED_ACT=EXPORTED_ACT)
-                            elif RESCAN=='0':
-                                print "\n[INFO] Saving to Database"
-                                STATIC_DB=StaticAnalyzerAndroid(TITLE = 'Static Analysis',
-                                APP_NAME = APP_NAME,
-                                SIZE = SIZE,
-                                MD5= MD5,
-                                SHA1 = SHA1,
-                                SHA256 = SHA256,
-                                PACKAGENAME = PACKAGENAME,
-                                MAINACTIVITY= MAINACTIVITY,
-                                TARGET_SDK = TARGET_SDK,
-                                MAX_SDK = MAX_SDK,
-                                MIN_SDK = MIN_SDK,
-                                ANDROVERNAME = ANDROVERNAME,
-                                ANDROVER= ANDROVER,
-                                MANIFEST_ANAL= MANIFEST_ANAL,
-                                PERMISSIONS = PERMISSIONS,
-                                FILES = FILES,
-                                CERTZ = CERTZ,
-                                ACTIVITIES = ACTIVITIES,
-                                RECEIVERS = RECEIVERS,
-                                PROVIDERS = PROVIDERS,
-                                SERVICES = SERVICES,
-                                LIBRARIES = LIBRARIES,
-                                CNT_ACT = CNT_ACT,
-                                CNT_PRO = CNT_PRO,
-                                CNT_SER = CNT_SER,
-                                CNT_BRO = CNT_BRO,
-                                CERT_INFO= "",
-                                NATIVE = NATIVE,
-                                DYNAMIC = DYNAMIC,
-                                REFLECT = REFLECT,
-                                CRYPTO= CRYPTO,
-                                OBFUS= OBFUS,
-                                API= API,
-                                DANG= DANG,
-                                URLS= URLS,
-                                EMAILS= EMAILS,
-                                STRINGS= "",
-                                ZIPPED= "",
-                                MANI= MANI,
-                                EXPORTED_ACT=EXPORTED_ACT)
-                                STATIC_DB.save()
-                        except Exception as e:
-                            print "\n[ERROR] Saving to Database Failed - "+str(e)
-                            pass
-                        context = {
-                        'title' : 'Static Analysis',
-                        'name' : APP_NAME,
-                        'size' : SIZE,
-                        'md5': MD5,
-                        'sha1' : SHA1,
-                        'sha256' : SHA256,
-                        'packagename' : PACKAGENAME,
-                        'mainactivity' : MAINACTIVITY,
-                        'targetsdk' : TARGET_SDK,
-                        'maxsdk' : MAX_SDK,
-                        'minsdk' : MIN_SDK,
-                        'androvername' : ANDROVERNAME,
-                        'androver': ANDROVER,
-                        'manifest': MANIFEST_ANAL,
-                        'permissions' : PERMISSIONS,
-                        'files' : FILES,
-                        'certz' : CERTZ,
-                        'activities' : ACTIVITIES,
-                        'receivers' : RECEIVERS,
-                        'providers' : PROVIDERS,
-                        'services' : SERVICES,
-                        'libraries' : LIBRARIES,
-                        'act_count' : CNT_ACT,
-                        'prov_count' : CNT_PRO,
-                        'serv_count' : CNT_SER,
-                        'bro_count' : CNT_BRO,
-                        'native' : NATIVE,
-                        'dynamic' : DYNAMIC,
-                        'reflection' : REFLECT,
-                        'crypto': CRYPTO,
-                        'obfus': OBFUS,
-                        'api': API,
-                        'dang': DANG,
-                        'urls': URLS,
-                        'emails': EMAILS,
-                        'mani': MANI,
-                        }
-                    elif Valid and pro_type=='ios':
-                        print "[INFO] Redirecting to iOS Source Code Analyzer"
-                        return HttpResponseRedirect('/StaticAnalyzer_iOS/?name='+APP_NAME+'&type=ios&checksum='+MD5)
-                    else:
-                        return HttpResponseRedirect('/ZIP_FORMAT/')
-                template="static_analysis_zip.html"
-                return render(request,template,context)
-            else:
-                print "\n[ERROR] Only APK,IPA and Zipped Android/iOS Source code supported now!"  
+                    'strings': STRINGS
+                }
+
+                return JsonResponse(context)
+                # template="static_analysis.html"
+                # return render(request,template,context)
         else:
             return HttpResponseRedirect('/error/')
 
@@ -756,15 +423,12 @@ def StaticAnalyzer(request):
         return render(request,template,context)
 def GetHardcodedCert(files):
     print "[INFO] Getting Hardcoded Certificates"
-    certz=''
+    certz=[]
     for f in files:
         ext=f.split('.')[-1]
         if re.search("cer|pem|cert|crt|pub|key|pfx|p12", ext):
-            certz+=escape(f) + "</br>"
-    if len(certz)>1:
-        certz="<tr><td>Certificate/Key Files Hardcoded inside the App.</td><td>"+certz+"</td><tr>"
+            certz.append(f)
     return certz
-    return re.sub(RE_XML_ILLEGAL, "?", dat)
 
 def ReadManifest(APP_DIR,TOOLS_DIR,TYP,BIN):
     dat=''
@@ -796,7 +460,7 @@ def GetManifest(APP_DIR,TOOLS_DIR,TYP,BIN):
         mfest=minidom.parseString(dat)
     except Exception as e:
         print "[ERROR] Pasrsing AndroidManifest.xml - " + str(e)
-        mfest=minidom.parseString(r'<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="Failed"  android:versionName="Failed" package="Failed"  platformBuildVersionCode="Failed" platformBuildVersionName="Failed XML Parsing" ></manifest>')      
+        mfest=minidom.parseString(r'<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="Failed"  android:versionName="Failed" package="Failed"  platformBuildVersionCode="Failed" platformBuildVersionName="Failed XML Parsing" ></manifest>')
         print "[WARNING] Using Fake XML to continue the Analysis"
     return mfest
 def ValidAndroidZip(APP_DIR):
@@ -876,13 +540,24 @@ def Unzip(APP_PATH, EXT_PATH):
 def FormatPermissions(PERMISSIONS):
     print "[INFO] Formatting Permissions"
     DESC=''
+    RET=[]
     for ech in PERMISSIONS:
+        perms = PERMISSIONS[ech]
+
         DESC=DESC + '<tr><td>' + ech + '</td>'
         for l in PERMISSIONS[ech]:
             DESC= DESC + '<td>' + l + '</td>'
         DESC= DESC+ '</tr>'
+
+        RET.append({
+            "type" : "permission",
+            "severity" : PERMISSION_SEVERITY_LOOKUP_TABLE[perms[0]] if perms[0] in PERMISSION_SEVERITY_LOOKUP_TABLE else "warning",
+            "description" : ech + " : " + perms[2]
+        })
+
     DESC=DESC.replace('dangerous','<span class="label label-danger">dangerous</span>').replace('normal','<span class="label label-info">normal</span>').replace('signatureOrSystem','<span class="label label-warning">SignatureOrSystem</span>').replace('signature','<span class="label label-success">signature</span>')
-    return DESC
+    return DESC, RET
+
 def CertInfo(APP_DIR,TOOLS_DIR):
     print "[INFO] Reading Signer Certificate"
     cert=os.path.join(APP_DIR,'META-INF/')
@@ -1044,7 +719,7 @@ def ManifestAnalysis(mfxml,mainact):
     granturipermissions = mfxml.getElementsByTagName("grant-uri-permission")
     for node in manifest:
         package = node.getAttribute("package")
-    RET=''
+    RET=[]
     EXPORTED=[]
     ##SERVICES
     ##search for services without permissions set
@@ -1058,21 +733,41 @@ def ManifestAnalysis(mfxml,mainact):
                 #service permission exists
                 perm =' (permission '+service.getAttribute("android:permission")+' exists.) '
             servicename = service.getAttribute("android:name")
-            RET=RET +'<tr><td>Service (' + servicename + ') is not Protected.'+perm+' <br>[android:exported=true]</td><td><span class="label label-danger">high</span></td><td> A service was found to be shared with other apps on the device without an intent filter or a permission requirement therefore leaving it accessible to any other application on the device.</td></tr>'
+            RET.append({
+                "type" : "unprotectedService",
+                "severity" : "danger",
+                "description" : 'Service (' + servicename + ') is not Protected.' + perm + '[android:exported=true]',
+            })
 
     ##APPLICATIONS
     for application in applications:
 
         if application.getAttribute("android:debuggable") == "true":
-            RET=RET+ '<tr><td>Debug Enabled For App <br>[android:debuggable=true]</td><td><span class="label label-danger">high</span></td><td>Debugging was enabled on the app which makes it easier for reverse engineers to hook a debugger to it. This allows dumping a stack trace and accessing debugging helper classes.</td></tr>'
+            RET.append({
+                "type" : "debugEnabled",
+                "severity" : "danger",
+                "description" : "Debug Enabled For App [android:debuggable=true]"
+            })
         if application.getAttribute("android:allowBackup") == "true":
-            RET=RET+ '<tr><td>Application Data can be Backed up<br>[android:allowBackup=true]</td><td><span class="label label-warning">medium</span></td><td>This flag allows anyone to backup your application data via adb. It allows users who have enabled USB debugging to copy application data off of the device.</td></tr>'
+            RET.append({
+                "type" : "backupEnabled",
+                "severity" : "warning",
+                "description" : "Application Data can be Backed up [android:allowBackup=true]"
+            })
         elif application.getAttribute("android:allowBackup") == "false":
             pass
         else:
-            RET=RET+ '<tr><td>Application Data can be Backed up<br>[android:allowBackup] flag is missing.</td><td><span class="label label-warning">medium</span></td><td>The flag [android:allowBackup] should be set to false. By default it is set to true and allows anyone to backup your application data via adb. It allows users who have enabled USB debugging to copy application data off of the device.</td></tr>'
+            RET.append({
+                "type" : "backupEnabled",
+                "severity" : "warning",
+                "description" : "Application Data can be Backed up [android:allowBackup]"
+            })
         if application.getAttribute("android:testOnly")== "true":
-            RET=RET+ '<tr><td>Application is in Test Mode <br>[android:testOnly=true]</td><td><span class="label label-danger">high</span></td><td> It may expose functionality or data outside of itself that would cause a security hole.</td></tr>'
+            RET.append({
+                "type" : "testModeEnabled",
+                "severity" : "danger",
+                "description" : "Application is in Test Mode [android:testOnly=true]"
+            })
         for node in application.childNodes:
             ad=''
             if node.nodeName == 'activity':
@@ -1093,11 +788,19 @@ def ManifestAnalysis(mfxml,mainact):
             #Task Affinity
             if ((itmname =='Activity' or itmname=='Activity-Alias') and (node.getAttribute("android:taskAffinity"))):
                 item=node.getAttribute("android:name")
-                RET=RET+ '<tr><td>TaskAffinity is set for Activity </br>('+item + ')</td><td><span class="label label-danger">high</span></td><td>If taskAffinity is set, then other application could read the Intents sent to Activities belonging to another task. Always use the default setting keeping the affinity as the package name in order to prevent sensitive information inside sent or received Intents from being read by another application.</td></tr>'
+                RET.append({
+                    "type" : "taskAffinitySet",
+                    "severity" : "danger",
+                    "description" : "TaskAffinity is set for Activity </br>(" + item + ")"
+                })
             #LaunchMode
             if ((itmname =='Activity' or itmname=='Activity-Alias') and ((node.getAttribute("android:launchMode")=='singleInstance') or (node.getAttribute("android:launchMode")=='singleTask'))):
                 item=node.getAttribute("android:name")
-                RET=RET+ '<tr><td>Launch Mode of Activity ('+item + ') is not standard.</td><td><span class="label label-danger">high</span></td><td>An Activity should not be having the launch mode attribute set to "singleTask/singleInstance" as it becomes root Activity and it is possible for other applications to read the contents of the calling Intent. So it is required to use the "standard" launch mode attribute when sensitive information is included in an Intent.</td></tr>'
+                RET.append({
+                    "type" : "nonStandardLauchMode",
+                    "severity" : "danger",
+                    "description" : "Launch Mode of Activity (" + item + ") is not standard."
+                })
             #Exported Check
             item=''
             isExp=False
@@ -1111,7 +814,12 @@ def ManifestAnalysis(mfxml,mainact):
                 if item!=mainact:
                     if (itmname =='Activity' or itmname=='Activity-Alias'):
                         EXPORTED.append(item)
-                    RET=RET +'<tr><td>'+itmname+' (' + item + ') is not Protected.'+perm+' <br>[android:exported=true]</td><td><span class="label label-danger">high</span></td><td> A'+ad+' '+itmname+' was found to be shared with other apps on the device therefore leaving it accessible to any other application on the device.</td></tr>'
+
+                    RET.append({
+                        "type" : "sharedThing",
+                        "severity" : "high",
+                        "description" : itmname + " (" + item + ") is not Protected." + perm + " <br>[android:exported=true]"
+                    })
             else:
                 isExp=False
             impE=False
@@ -1132,7 +840,11 @@ def ManifestAnalysis(mfxml,mainact):
                     if item!=mainact:
                         if (itmname =='Activity' or itmname=='Activity-Alias'):
                             EXPORTED.append(item)
-                        RET=RET +'<tr><td>'+itmname+' (' + item + ') is not Protected.<br>An intent-filter exists.</td><td><span class="label label-danger">high</span></td><td> A'+ad+' '+itmname+' was found to be shared with other apps on the device therefore leaving it accessible to any other application on the device. The presence of intent-filter indicates that the '+itmname+' is explicitly exported.</td></tr>'
+                        RET.append({
+                            "type" : "sharedThing",
+                            "severity" : "danger",
+                            "description" : itmname+" (" + item + ") is not Protected.<br>An intent-filter exists."
+                        })
 
     ##GRANT-URI-PERMISSIONS
     title = 'Improper Content Provider Permissions'
@@ -1140,24 +852,42 @@ def ManifestAnalysis(mfxml,mainact):
             'device. Content providers may contain sensitive information about an app and therefore should not be shared.')
     for granturi in granturipermissions:
         if granturi.getAttribute("android:pathPrefix") == '/':
-            RET=RET+ '<tr><td>' + title + '<br> [pathPrefix=/] </td>' + '<td><span class="label label-danger">high</span></td><td>'+ desc+'</td></tr>'
+            RET.append({
+                "type" : "contentProviderPerms",
+                "severity" : "danger",
+                "description" : title + " [pathPrefix=/]"
+            })
         elif granturi.getAttribute("android:path") == '/':
-            RET=RET+ '<tr><td>' + title + '<br> [path=/] </td>' + '<td><span class="label label-danger">high</span></td><td>'+ desc+'</td></tr>'
+            RET.append({
+                "type" : "contentProviderPerms",
+                "severity" : "danger",
+                "description" : title + " [path=/]"
+            })
         elif granturi.getAttribute("android:pathPattern") == '*':
-            RET=RET+ '<tr><td>' + title + '<br> [path=*]</td>' + '<td><span class="label label-danger">high</span></td><td>'+ desc +'</td></tr>'
+            RET.append({
+                "type" : "contentProviderPerms",
+                "severity" : "danger",
+                "description" : title + " [path=*]"
+            })
 
     ##DATA
     for data in datas:
         if data.getAttribute("android:scheme") == "android_secret_code":
             xmlhost = data.getAttribute("android:host")
-            desc = ("A secret code was found in the manifest. These codes, when entered into the dialer " +
-                "grant access to hidden content that may contain sensitive information.")
-            RET=RET+  '<tr><td>Dailer Code: '+ xmlhost + 'Found <br>[android:scheme="android_secret_code"]</td><td><span class="label label-danger">high</span></td><td>'+ desc + '</td></tr>'
+            RET.append({
+                "type" : "dialerCode",
+                "severity" : "danger",
+                "description" : "Dailer Code: " + xmlhost + "Found [android:scheme=\"android_secret_code\"]"
+            })
         elif data.getAttribute("android:port"):
             dataport = data.getAttribute("android:port")
             title = "Data SMS Receiver Set"
             desc = "A binary SMS recevier is configured to listen on a port. Binary SMS messages sent to a device are processed by the application in whichever way the developer choses. The data in this SMS should be properly validated by the application. Furthermore, the application should assume that the SMS being received is from an untrusted source."
-            RET=RET+  '<tr><td> on Port: ' + dataport +  'Found<br>[android:port]</td><td><span class="label label-danger">high</span></td><td>'+ desc +'</td></tr>'
+            RET.append({
+                "type" : "smsReceiver",
+                "severity" : "danger",
+                "description" : "Data SMS Receiver Set on Port: " + dataport +  "Found[android:port]"
+            })
 
     ##INTENTS
 
@@ -1165,15 +895,22 @@ def ManifestAnalysis(mfxml,mainact):
         if intent.getAttribute("android:priority").isdigit():
             value = intent.getAttribute("android:priority")
             if int(value) > 100:
-                RET=RET+ '<tr><td>High Intent Priority ('+ value +')<br>[android:priority]</td><td><span class="label label-warning">medium</span></td><td>By setting an intent priority higher than another intent, the app effectively overrides other requests.</td></tr>'
+                RET.append({
+                    "type" : "intentPriority",
+                    "severity" : "warning",
+                    "description" : "High Intent Priority (" + value + ")[android:priority]"
+                })
     ##ACTIONS
     for action in actions:
         if action.getAttribute("android:priority").isdigit():
             value = action.getAttribute("android:priority")
             if int(value) > 100:
-                RET=RET + '<tr><td>High Action Priority (' + value+')<br>[android:priority]</td><td><span class="label label-warning">medium</span></td><td>By setting an action priority higher than another action, the app effectively overrides other requests.</td></tr>'
-    if len(RET)< 2:
-        RET='<tr><td>None</td><td>None</td><td>None</td><tr>'
+                RET.append({
+                    "type" : "activityPriority",
+                    "severity" : "warning",
+                    "description" : "High Action Priority (" + value+  ")[android:priority]"
+                })
+
     return RET,EXPORTED
 
 def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
@@ -1184,8 +921,10 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
     reflect=False
     dynamic=False
     native=False
-    EmailnFile=''
-    URLnFile=''
+
+    URLS=[]
+    EMAILS=[]
+
     if TYP=="apk":
         JS=os.path.join(APP_DIR, 'java_source/')
     elif TYP=="studio":
@@ -1206,8 +945,7 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
                 with io.open(jfile_path,mode='r',encoding="utf8",errors="ignore") as f:
                     dat=f.read()
                 #Initialize
-                URLS=[]
-                EMAILS=[]
+
                 #Code Analysis
                 #print "[INFO] Doing Code Analysis on - " + jfile_path
 
@@ -1229,7 +967,7 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
                     c['d_sqlite'].append(jfile_path.replace(JS,''))
                 if ((('javax.net.ssl') in dat) and (('TrustAllSSLSocket-Factory') in dat or ('AllTrustSSLSocketFactory') in dat or ('NonValidatingSSLSocketFactory')  in dat or('ALLOW_ALL_HOSTNAME_VERIFIER') in dat or ('.setDefaultHostnameVerifier(') in dat or ('NullHostnameVerifier(') in dat)):
                     c['d_ssl'].append(jfile_path.replace(JS,''))
-                #Add Sachin's Code Here and Add support for detecting insecure ssl algoo's 
+                #Add Sachin's Code Here and Add support for detecting insecure ssl algoo's
 
                 if (('password = "') in dat.lower() or ('secret = "') in dat.lower() or ('username = "') in dat.lower() or ('key = "') in dat.lower()):
                     c['d_sensitive'].append(jfile_path.replace(JS,''))
@@ -1257,7 +995,7 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
                     c['rand'].append(jfile_path.replace(JS,''))
                 if(re.findall('Log.|System.out.print',dat)):
                     c['log'].append(jfile_path.replace(JS,''))
-                
+
                 #Inorder to Add rule to Code Analysis, add identifier to c, add rule here and define identifier description and severity the bottom of this function.
                 #API Check
                 if ((('java.lang.System') in dat or ('java.lang.Runtime') in dat ) and ('.load(') in dat):
@@ -1346,34 +1084,27 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
                     c['inf_ser'].append(jfile_path.replace(JS,''))
                 if (re.findall('sendBroadcast\(|sendOrderedBroadcast\(|sendStickyBroadcast\(',dat)):
                     c['inf_bro'].append(jfile_path.replace(JS,''))
-                
-               
+
+
 
                 fl=jfile_path.replace(JS,'')
                 base_fl=ntpath.basename(fl)
-                
+
                 #URLs My Custom regex
-                p = re.compile(ur'((?:https?://|s?ftps?://|file://|javascript:|data:|www\d{0,3}[.])[\w().=/;,#:@?&~*+!$%\'{}-]+)', re.UNICODE) 
+                p = re.compile(ur'((?:https?://|s?ftps?://|file://|javascript:|data:|www\d{0,3}[.])[\w().=/;,#:@?&~*+!$%\'{}-]+)', re.UNICODE)
                 urllist=re.findall(p, dat.lower())
-                uflag=0
+
                 for url in urllist:
                     if url not in URLS:
                         URLS.append(url)
-                        uflag=1
-                if uflag==1:
-                    URLnFile+="<tr><td>" + "<br>".join(URLS) + "</td><td><a href='../ViewSource/?file=" + escape(fl)+"&md5="+MD5+"&type="+TYP+"'>"+escape(base_fl)+"</a></td></tr>"
-                
-                #Email Etraction Regex
-                
+
+                # #Email Etraction Regex
                 regex = re.compile("[\w.-]+@[\w-]+\.[\w.]+")
-                eflag=0
                 for email in regex.findall(dat.lower()):
                     if ((email not in EMAILS) and (not email.startswith('//'))):
                         EMAILS.append(email)
-                        eflag=1
-                if eflag==1:
-                    EmailnFile+="<tr><td>" + "<br>".join(EMAILS) + "</td><td><a href='../ViewSource/?file=" + escape(fl)+"&md5="+MD5+"&type="+TYP+"'>"+escape(base_fl)+"</a></td></tr>"
-                
+
+
     print "[INFO] Finished Code Analysis, Email and URL Extraction"
     #API Description
     dc ={'gps':'GPS Location',
@@ -1417,14 +1148,15 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
         'inf_ser': 'Starting Service',
         'inf_bro': 'Sending Broadcast'
         }
-    html=''
+    apis=[]
     for ky in dc:
         if c[ky]:
-            link=''
-            hd="<tr><td>"+dc[ky]+"</td><td>"
-            for l in c[ky]:
-                link+="<a href='../ViewSource/?file="+ escape(l) +"&md5="+MD5+"&type="+TYP+"'>"+escape(ntpath.basename(l))+"</a> "
-            html+=hd+link+"</td></tr>"
+            apis.append({
+                "id" : ky,
+                "description" : dc[ky],
+                "classes" : c[ky]
+            })
+
     #Code Review Description
     dg={'d_sensitive' : "Files may contain hardcoded sensitive informations like usernames, passwords, keys etc.",
         'd_ssl': 'Insecure Implementation of SSL. Trusting all the certificates or accepting self signed certificates is a critical Security Hole.',
@@ -1450,28 +1182,30 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
         'log' : 'The App logs information. Sensitive information should never be logged.',
         }
 
-                
 
-    dang=''
+
+    dang=[]
     spn_dang='<span class="label label-danger">high</span>'
     spn_info='<span class="label label-info">info</span>'
     spn_sec='<span class="label label-success">secure</span>'
     for k in dg:
         if c[k]:
-            link=''
+            obj = {
+                "type"        : "codeIssue",
+                "description" : dg[k],
+                "classes"     : c[k]
+            }
             if (re.findall('d_sqlite|d_con_private|log',k)):
-                hd='<tr><td>'+dg[k]+'</td><td>'+spn_info+'</td><td>'
+                obj["severity"] = "info"
             elif (re.findall('d_rootcheck|dex_cert|dex_tamper|dex_debug|dex_debug_con|dex_debug_key|dex_emulator|dex_root|d_ssl_pin',k)):
-                hd='<tr><td>'+dg[k]+'</td><td>'+spn_sec+'</td><td>'
+                obj["severity"] = "secure"
             else:
-                hd='<tr><td>'+dg[k]+'</td><td>'+spn_dang+'</td><td>'
+                obj["severity"] = "danger"
 
-            for ll in c[k]:
-                link+="<a href='../ViewSource/?file="+ escape(ll) +"&md5="+MD5+"&type="+TYP+"'>"+escape(ntpath.basename(ll))+"</a> "
 
-            dang+=hd+link+"</td></tr>"
+            dang.append(obj)
 
-    return html,dang,URLnFile,EmailnFile,crypto,obfus,reflect,dynamic,native
+    return apis,dang,URLS,EMAILS,crypto,obfus,reflect,dynamic,native
 
 #iOS Support Functions
 def StaticAnalyzer_iOS(request):
@@ -1733,7 +1467,7 @@ def readBinXML(FILE):
     args=['plutil','-convert','xml1',FILE]
     dat=subprocess.check_output(args)
     with io.open(FILE,mode='r',encoding="utf8",errors="ignore") as f:
-        dat=f.read() 
+        dat=f.read()
     return dat
 def HandleSqlite(SFile):
     try:
@@ -1790,7 +1524,7 @@ def iOS_ListFiles(SRC,MD5,BIN,MODE):
                         readBinXML(file_path)
                     plist+="<a href='../ViewFile/?file="+escape(fileparam)+"&type=xml&mode="+MODE+"&md5="+MD5+"''> "+escape(fileparam)+" </a></br>"
     if len(db)>1:
-        db="<tr><td>SQLite Files</td><td>"+db+"</td></tr>"   
+        db="<tr><td>SQLite Files</td><td>"+db+"</td></tr>"
         sfiles+=db
     if len(plist)>1:
         plist="<tr><td>Plist Files</td><td>"+plist+"</td></tr>"
@@ -1807,7 +1541,7 @@ def BinaryAnalysis(SRC,TOOLS_DIR,APP_DIR):
                 break
     BIN_DIR=os.path.join(SRC,d)         #Full Dir/Payload/x.app
     XML_FILE=os.path.join(BIN_DIR,"Info.plist")
-    BIN=d.replace(".app","") 
+    BIN=d.replace(".app","")
     BIN_NAME=BIN
     ID=""
     VER=""
@@ -1815,7 +1549,7 @@ def BinaryAnalysis(SRC,TOOLS_DIR,APP_DIR):
     PLTFM=""
     MIN=""
     XML=""
-    
+
     try:
         print "[INFO] Reading Info.plist"
         XML=readBinXML(XML_FILE)
@@ -1827,7 +1561,7 @@ def BinaryAnalysis(SRC,TOOLS_DIR,APP_DIR):
         SDK=p["DTSDKName"]
         PLTFM=p["DTPlatformVersion"]
         MIN=p["MinimumOSVersion"]
-        
+
     except Exception as e:
         print "Error - while reading from Info.plist: " + str(e)
         pass
@@ -1930,7 +1664,7 @@ def BinaryAnalysis(SRC,TOOLS_DIR,APP_DIR):
             f.write(CDUMP)
         if "UIWebView" in CDUMP:
             WVIEW="<tr><td>Binary uses WebView Component.</td><td><span class='label label-info'>Info</span></td><td>The binary may use WebView Component.</td></tr>"
-   
+
     except Exception as e:
         print "Error - Cannot perform class dump: "+ str(e)
         pass
@@ -1963,7 +1697,7 @@ def iOS_Source_Analysis(SRC,MD5):
         XML=f.read()
     p=plistlib.readPlistFromString(XML)
     BIN_NAME=p["CFBundleDisplayName"]
-    BIN=p["CFBundleExecutable"] 
+    BIN=p["CFBundleExecutable"]
     ID=p["CFBundleIdentifier"]
     VER=p["CFBundleVersion"]
     SDK=''#p["DTSDKName"]
@@ -1987,7 +1721,7 @@ def iOS_Source_Analysis(SRC,MD5):
                 dat=''
                 with io.open(jfile_path,mode='r',encoding="utf8",errors="ignore") as f:
                     dat=f.read()
-                
+
                 URLS=[]
                 EMAILS=[]
 
@@ -2005,11 +1739,11 @@ def iOS_Source_Analysis(SRC,MD5):
                     c['i_log'].append(jfile_path.replace(SRC,''))
                 if (re.findall("sqlite3_exec",dat)):
                     c['i_sqlite'].append(jfile_path.replace(SRC,''))
-    
+
                 fl=jfile_path.replace(SRC,'')
                 base_fl=ntpath.basename(fl)
                 #URLs My Custom regex
-                p = re.compile(ur'((?:https?://|s?ftps?://|file://|javascript:|data:|www\d{0,3}[.])[\w().=/;,#:@?&~*+!$%\'{}-]+)', re.UNICODE) 
+                p = re.compile(ur'((?:https?://|s?ftps?://|file://|javascript:|data:|www\d{0,3}[.])[\w().=/;,#:@?&~*+!$%\'{}-]+)', re.UNICODE)
                 urllist=re.findall(p, dat.lower())
                 uflag=0
                 for url in urllist:
@@ -2018,9 +1752,9 @@ def iOS_Source_Analysis(SRC,MD5):
                         uflag=1
                 if uflag==1:
                     URLnFile+="<tr><td>" + "<br>".join(URLS) + "</td><td><a href='../ViewFile/?file=" + escape(fl)+"&type=m&mode=ios&md5="+MD5+"'>"+escape(base_fl)+"</a></td></tr>"
-                
+
                 #Email Etraction Regex
-                
+
                 regex = re.compile("[\w.-]+@[\w-]+\.[\w.]+")
                 eflag=0
                 for email in regex.findall(dat.lower()):

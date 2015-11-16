@@ -45,7 +45,7 @@ INSTALLED_APPS = (
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -100,12 +100,12 @@ STATIC_URL = '/static/'
 
 #CUSTOM SETTINGS - DO NOT EDIT ANYTHING ABOVE THIS
 #=================================================
-DECOMPILER = "jd-core" 
+DECOMPILER = "jd-core"
 
-#Two Decompilers are available 
+#Two Decompilers are available
 #1. jd-core
 #2. cfr
- 
+
 if platform.system()=="Windows":
     JAVA_PATH=java.FindJava()
     #JAVA_PATH='C:/Program Files/Java/jdk1.7.0_17/bin/'  # Use "/" instead of "\" for the path and the path should end with a "/".
