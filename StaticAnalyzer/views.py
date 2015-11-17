@@ -791,7 +791,7 @@ def ManifestAnalysis(mfxml,mainact):
                 RET.append({
                     "type" : "taskAffinitySet",
                     "severity" : "danger",
-                    "description" : "TaskAffinity is set for Activity </br>(" + item + ")"
+                    "description" : "TaskAffinity is set for Activity (" + item + ")"
                 })
             #LaunchMode
             if ((itmname =='Activity' or itmname=='Activity-Alias') and ((node.getAttribute("android:launchMode")=='singleInstance') or (node.getAttribute("android:launchMode")=='singleTask'))):
@@ -818,7 +818,7 @@ def ManifestAnalysis(mfxml,mainact):
                     RET.append({
                         "type" : "sharedThing",
                         "severity" : "high",
-                        "description" : itmname + " (" + item + ") is not Protected." + perm + " <br>[android:exported=true]"
+                        "description" : itmname + " (" + item + ") is not Protected." + perm + " [android:exported=true]"
                     })
             else:
                 isExp=False
@@ -843,7 +843,7 @@ def ManifestAnalysis(mfxml,mainact):
                         RET.append({
                             "type" : "sharedThing",
                             "severity" : "danger",
-                            "description" : itmname+" (" + item + ") is not Protected.<br>An intent-filter exists."
+                            "description" : itmname+" (" + item + ") is not Protected. An intent-filter exists."
                         })
 
     ##GRANT-URI-PERMISSIONS
