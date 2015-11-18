@@ -22,7 +22,7 @@ except Exception:
     from io import StringIO
 
 PERMISSION_SEVERITY_LOOKUP_TABLE = {
-    "dangerous"         : "danger",
+    "dangerous"         : "critical",
     "normal"            : "normal",
     "signatureOrSystem" : "warning",
     "signature"         : "safe"
@@ -735,7 +735,7 @@ def ManifestAnalysis(mfxml,mainact):
             servicename = service.getAttribute("android:name")
             RET.append({
                 "type" : "unprotectedService",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : 'Service (' + servicename + ') is not Protected.' + perm + '[android:exported=true]',
             })
 
@@ -745,7 +745,7 @@ def ManifestAnalysis(mfxml,mainact):
         if application.getAttribute("android:debuggable") == "true":
             RET.append({
                 "type" : "debugEnabled",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : "Debug Enabled For App [android:debuggable=true]"
             })
         if application.getAttribute("android:allowBackup") == "true":
@@ -765,7 +765,7 @@ def ManifestAnalysis(mfxml,mainact):
         if application.getAttribute("android:testOnly")== "true":
             RET.append({
                 "type" : "testModeEnabled",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : "Application is in Test Mode [android:testOnly=true]"
             })
         for node in application.childNodes:
@@ -790,7 +790,7 @@ def ManifestAnalysis(mfxml,mainact):
                 item=node.getAttribute("android:name")
                 RET.append({
                     "type" : "taskAffinitySet",
-                    "severity" : "danger",
+                    "severity" : "critical",
                     "description" : "TaskAffinity is set for Activity (" + item + ")"
                 })
             #LaunchMode
@@ -798,7 +798,7 @@ def ManifestAnalysis(mfxml,mainact):
                 item=node.getAttribute("android:name")
                 RET.append({
                     "type" : "nonStandardLauchMode",
-                    "severity" : "danger",
+                    "severity" : "critical",
                     "description" : "Launch Mode of Activity (" + item + ") is not standard."
                 })
             #Exported Check
@@ -817,7 +817,7 @@ def ManifestAnalysis(mfxml,mainact):
 
                     RET.append({
                         "type" : "sharedThing",
-                        "severity" : "high",
+                        "severity" : "severe",
                         "description" : itmname + " (" + item + ") is not Protected." + perm + " [android:exported=true]"
                     })
             else:
@@ -842,7 +842,7 @@ def ManifestAnalysis(mfxml,mainact):
                             EXPORTED.append(item)
                         RET.append({
                             "type" : "sharedThing",
-                            "severity" : "danger",
+                            "severity" : "critical",
                             "description" : itmname+" (" + item + ") is not Protected. An intent-filter exists."
                         })
 
@@ -854,19 +854,19 @@ def ManifestAnalysis(mfxml,mainact):
         if granturi.getAttribute("android:pathPrefix") == '/':
             RET.append({
                 "type" : "contentProviderPerms",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : title + " [pathPrefix=/]"
             })
         elif granturi.getAttribute("android:path") == '/':
             RET.append({
                 "type" : "contentProviderPerms",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : title + " [path=/]"
             })
         elif granturi.getAttribute("android:pathPattern") == '*':
             RET.append({
                 "type" : "contentProviderPerms",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : title + " [path=*]"
             })
 
@@ -876,7 +876,7 @@ def ManifestAnalysis(mfxml,mainact):
             xmlhost = data.getAttribute("android:host")
             RET.append({
                 "type" : "dialerCode",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : "Dailer Code: " + xmlhost + "Found [android:scheme=\"android_secret_code\"]"
             })
         elif data.getAttribute("android:port"):
@@ -885,7 +885,7 @@ def ManifestAnalysis(mfxml,mainact):
             desc = "A binary SMS recevier is configured to listen on a port. Binary SMS messages sent to a device are processed by the application in whichever way the developer choses. The data in this SMS should be properly validated by the application. Furthermore, the application should assume that the SMS being received is from an untrusted source."
             RET.append({
                 "type" : "smsReceiver",
-                "severity" : "danger",
+                "severity" : "critical",
                 "description" : "Data SMS Receiver Set on Port: " + dataport +  "Found[android:port]"
             })
 
@@ -1200,7 +1200,7 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
             elif (re.findall('d_rootcheck|dex_cert|dex_tamper|dex_debug|dex_debug_con|dex_debug_key|dex_emulator|dex_root|d_ssl_pin',k)):
                 obj["severity"] = "secure"
             else:
-                obj["severity"] = "danger"
+                obj["severity"] = "critical"
 
 
             dang.append(obj)
