@@ -8,7 +8,9 @@ from StaticAnalyzer.models import StaticAnalyzerAndroid,StaticAnalyzerIPA,Static
 from django.conf import settings
 from django.utils.html import escape
 from xml.dom import minidom
-from .dvm_permissions import DVM_PERMISSIONS
+from .dvm_permissions import DVM_PERMISSIONS #android permissions
+from .issue_descriptions import MANIFEST_ISSUE_DESCRIPTIONS #manifest flags
+from .issue_descriptions import CODE_ISSUES #code static analysis results
 import sqlite3 as sq
 import io,re,os,glob,hashlib, zipfile, subprocess,ntpath,shutil,platform,ast,sys,plistlib
 try:
@@ -420,7 +422,8 @@ def StaticAnalyzer(request):
         'doc' : e.__doc__
         }
         template="error.html"
-        return render(request,template,context)
+        return JsonResponse(context);
+        # return render(request,template,context)
 def GetHardcodedCert(files):
     print "[INFO] Getting Hardcoded Certificates"
     certz=[]
@@ -537,6 +540,7 @@ def Unzip(APP_PATH, EXT_PATH):
                 return x
             except Exception as e1:
                 print "\n[ERROR] Unzipping Error - "+str(e1)
+
 def FormatPermissions(PERMISSIONS):
     print "[INFO] Formatting Permissions"
     DESC=''
@@ -550,9 +554,10 @@ def FormatPermissions(PERMISSIONS):
         DESC= DESC+ '</tr>'
 
         RET.append({
-            "type" : "permission",
-            "severity" : PERMISSION_SEVERITY_LOOKUP_TABLE[perms[0]] if perms[0] in PERMISSION_SEVERITY_LOOKUP_TABLE else "warning",
-            "description" : ech + " : " + perms[2]
+            "type"            : "permission",
+            "severity"        : PERMISSION_SEVERITY_LOOKUP_TABLE[perms[0]] if perms[0] in PERMISSION_SEVERITY_LOOKUP_TABLE else "warning",
+            "description"     : ech + " : " + perms[1],
+            "longDescription" : perms[2]
         })
 
     DESC=DESC.replace('dangerous','<span class="label label-danger">dangerous</span>').replace('normal','<span class="label label-info">normal</span>').replace('signatureOrSystem','<span class="label label-warning">SignatureOrSystem</span>').replace('signature','<span class="label label-success">signature</span>')
@@ -736,7 +741,8 @@ def ManifestAnalysis(mfxml,mainact):
             RET.append({
                 "type" : "unprotectedService",
                 "severity" : "critical",
-                "description" : 'Service (' + servicename + ') is not Protected.' + perm + '[android:exported=true]',
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["unprotectedService"][0].format(**{"service" : servicename, "perm" : perm}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["unprotectedService"][1]
             })
 
     ##APPLICATIONS
@@ -746,27 +752,31 @@ def ManifestAnalysis(mfxml,mainact):
             RET.append({
                 "type" : "debugEnabled",
                 "severity" : "critical",
-                "description" : "Debug Enabled For App [android:debuggable=true]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["debugEnabled"][0],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["debugEnabled"][1]
             })
         if application.getAttribute("android:allowBackup") == "true":
             RET.append({
                 "type" : "backupEnabled",
                 "severity" : "warning",
-                "description" : "Application Data can be Backed up [android:allowBackup=true]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["backupEnabled"][0],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["backupEnabled"][1]
             })
         elif application.getAttribute("android:allowBackup") == "false":
             pass
         else:
             RET.append({
-                "type" : "backupEnabled",
+                "type" : "backupFlagMissing",
                 "severity" : "warning",
-                "description" : "Application Data can be Backed up [android:allowBackup]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["backupFlagMissing"][0],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["backupFlagMissing"][1]
             })
         if application.getAttribute("android:testOnly")== "true":
             RET.append({
                 "type" : "testModeEnabled",
                 "severity" : "critical",
-                "description" : "Application is in Test Mode [android:testOnly=true]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["testModeEnabled"][0],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["testModeEnabled"][1]
             })
         for node in application.childNodes:
             ad=''
@@ -791,7 +801,8 @@ def ManifestAnalysis(mfxml,mainact):
                 RET.append({
                     "type" : "taskAffinitySet",
                     "severity" : "critical",
-                    "description" : "TaskAffinity is set for Activity (" + item + ")"
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["taskAffinitySet"][0].format(**{"item" : item}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["taskAffinitySet"][1]
                 })
             #LaunchMode
             if ((itmname =='Activity' or itmname=='Activity-Alias') and ((node.getAttribute("android:launchMode")=='singleInstance') or (node.getAttribute("android:launchMode")=='singleTask'))):
@@ -799,7 +810,8 @@ def ManifestAnalysis(mfxml,mainact):
                 RET.append({
                     "type" : "nonStandardLauchMode",
                     "severity" : "critical",
-                    "description" : "Launch Mode of Activity (" + item + ") is not standard."
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["nonStandardLauchMode"][0].format(**{"item" : item}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["nonStandardLauchMode"][1]
                 })
             #Exported Check
             item=''
@@ -818,7 +830,8 @@ def ManifestAnalysis(mfxml,mainact):
                     RET.append({
                         "type" : "sharedThing",
                         "severity" : "severe",
-                        "description" : itmname + " (" + item + ") is not Protected." + perm + " [android:exported=true]"
+                        "description" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThing"][0].format(**{"itmname" : itmname, "item" : item, "perm" : perm}),
+                        "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThing"][1].format(**{"ad" : ad, "itmname" : itmname})
                     })
             else:
                 isExp=False
@@ -841,9 +854,10 @@ def ManifestAnalysis(mfxml,mainact):
                         if (itmname =='Activity' or itmname=='Activity-Alias'):
                             EXPORTED.append(item)
                         RET.append({
-                            "type" : "sharedThing",
+                            "type" : "sharedThingIntent",
                             "severity" : "critical",
-                            "description" : itmname+" (" + item + ") is not Protected. An intent-filter exists."
+                            "description" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThingIntent"][0].format(**{"itmname" : itmname, "item": item}),
+                            "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThingIntent"][1].format(**{"itmname" : itmname, "ad": ad})
                         })
 
     ##GRANT-URI-PERMISSIONS
@@ -855,19 +869,22 @@ def ManifestAnalysis(mfxml,mainact):
             RET.append({
                 "type" : "contentProviderPerms",
                 "severity" : "critical",
-                "description" : title + " [pathPrefix=/]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0].format(**{"path" : "[pathPrefix=/]"}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1]
             })
         elif granturi.getAttribute("android:path") == '/':
             RET.append({
                 "type" : "contentProviderPerms",
                 "severity" : "critical",
-                "description" : title + " [path=/]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0].format(**{"path" : "[path=/]"}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1]
             })
         elif granturi.getAttribute("android:pathPattern") == '*':
             RET.append({
                 "type" : "contentProviderPerms",
                 "severity" : "critical",
-                "description" : title + " [path=*]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0].format(**{"path" : "[path=*]"}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1]
             })
 
     ##DATA
@@ -877,7 +894,8 @@ def ManifestAnalysis(mfxml,mainact):
             RET.append({
                 "type" : "dialerCode",
                 "severity" : "critical",
-                "description" : "Dailer Code: " + xmlhost + "Found [android:scheme=\"android_secret_code\"]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["dialerCode"][0].format(**{"xmlhost" : xmlhost}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["dialerCode"][1]
             })
         elif data.getAttribute("android:port"):
             dataport = data.getAttribute("android:port")
@@ -886,7 +904,8 @@ def ManifestAnalysis(mfxml,mainact):
             RET.append({
                 "type" : "smsReceiver",
                 "severity" : "critical",
-                "description" : "Data SMS Receiver Set on Port: " + dataport +  "Found[android:port]"
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["smsReceiver"][0].format(**{"dataport" : dataport}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["smsReceiver"][1]
             })
 
     ##INTENTS
@@ -898,7 +917,8 @@ def ManifestAnalysis(mfxml,mainact):
                 RET.append({
                     "type" : "intentPriority",
                     "severity" : "warning",
-                    "description" : "High Intent Priority (" + value + ")[android:priority]"
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][0].format(**{"value" : value}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][1]
                 })
     ##ACTIONS
     for action in actions:
@@ -908,7 +928,8 @@ def ManifestAnalysis(mfxml,mainact):
                 RET.append({
                     "type" : "activityPriority",
                     "severity" : "warning",
-                    "description" : "High Action Priority (" + value+  ")[android:priority]"
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][0].format(**{"value" : value}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][1]
                 })
 
     return RET,EXPORTED
@@ -1157,43 +1178,17 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
                 "classes" : c[ky]
             })
 
-    #Code Review Description
-    dg={'d_sensitive' : "Files may contain hardcoded sensitive informations like usernames, passwords, keys etc.",
-        'd_ssl': 'Insecure Implementation of SSL. Trusting all the certificates or accepting self signed certificates is a critical Security Hole.',
-        'd_sqlite': 'App uses SQLite Database. Sensitive Information should be encrypted.',
-        'd_con_world_readable':'The Object is World Readable. Any App can read from the Object',
-        'd_con_world_writable':'The Object is World Writable. Any App can write to the Object',
-        'd_con_private':'App can write to App Directory. Sensitive Information should be encrypted.',
-        'd_extstorage': 'App can read/write to External Storage. Any App can read data written to External Storage.',
-        'd_jsenabled':'Insecure WebView Implementation. Execution of user controlled code in WebView is a critical Security Hole.',
-        'd_webviewdisablessl':'Insecure WebView Implementation. WebView ignores SSL Certificate Errors.',
-        'd_webviewdebug':'Remote WebView debugging is enabled.',
-        'dex_debug': 'DexGuard Debug Detection code to detect wheather an App is debuggable or not is identified.',
-        'dex_debug_con':'DexGuard Debugger Detection code is identified.',
-        'dex_debug_key':'DecGuard code to detect wheather the App is signed with a debug key or not is identified.',
-        'dex_emulator':'DexGuard Emulator Detection code is identified.',
-        'dex_root':'DexGuard Root Detection code is identified.',
-        'dex_tamper' : 'DexGuard App Tamper Detection code is identified.',
-        'dex_cert' : 'DexGuard Signer Certificate Tamper Detection code is identified.',
-        'd_ssl_pin':' This App uses an SSL Pinning Library (org.thoughtcrime.ssl.pinning) to prevent MITM attacks in secure communication channel.',
-        'd_root' : 'This App may request root (Super User) privileges.',
-        'd_rootcheck' : 'This App may have root detection capabilities.',
-        'rand' : 'The App uses an insecure Random Number Generator.',
-        'log' : 'The App logs information. Sensitive information should never be logged.',
-        }
-
-
-
     dang=[]
     spn_dang='<span class="label label-danger">high</span>'
     spn_info='<span class="label label-info">info</span>'
     spn_sec='<span class="label label-success">secure</span>'
-    for k in dg:
+    for k in CODE_ISSUES:
         if c[k]:
             obj = {
-                "type"        : "codeIssue",
-                "description" : dg[k],
-                "classes"     : c[k]
+                "type"            : "codeIssue",
+                "description"     : CODE_ISSUES[k][0],
+                "longDescription" : CODE_ISSUES[k][1],
+                "classes"         : c[k]
             }
             if (re.findall('d_sqlite|d_con_private|log',k)):
                 obj["severity"] = "info"
