@@ -936,7 +936,7 @@ def ManifestAnalysis(mfxml,mainact):
 
 def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
     print "[INFO] Static Android Code Analysis Started"
-    c = {key: [] for key in ('inf_act','inf_ser','inf_bro','log','fileio','rand','dex_cert','dex_tamper','d_rootcheck','d_root','d_ssl_pin','dex_root','dex_debug_key','dex_debug','dex_debug_con','dex_emulator','d_webviewdisablessl','d_webviewdebug','d_sensitive','d_ssl','d_sqlite','d_con_world_readable','d_con_world_writable','d_con_private','d_extstorage','d_jsenabled','gps','crypto','exec','server_socket','socket','datagramp','datagrams','ipc','msg','webview_addjs','webview','webviewget','webviewpost','httpcon','urlcon','jurl','httpsurl','nurl','httpclient','notify','cellinfo','cellloc','subid','devid','softver','simserial','simop','opname','contentq','refmethod','obf','gs','bencode','bdecode','dex','mdigest')}
+    c = {key: [] for key in ('inf_act','inf_ser','inf_bro','log','fileio','rand','dex_cert','dex_tamper','d_rootcheck','d_root','d_ssl_pin','dex_root','dex_debug_key','dex_debug','dex_debug_con','dex_emulator','d_webviewdisablessl','d_webviewdebug','d_sensitive','d_ssl','d_sqlite','d_con_world_readable','d_con_world_writable','d_con_private','d_extstorage','d_jsenabled','gps','crypto','exec','server_socket','socket','datagramp','datagrams','ipc','msg','webview_addjs','webview','webviewget','webviewpost','httpcon','urlcon','jurl','httpsurl','nurl','httpclient','notify','cellinfo','cellloc','subid','devid','softver','simserial','simop','opname','contentq','refmethod','obf','gs','bencode','bdecode','dex','mdigest', 'insecure_http')}
     crypto=False
     obfus=False
     reflect=False
@@ -1105,7 +1105,8 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
                     c['inf_ser'].append(jfile_path.replace(JS,''))
                 if (re.findall('sendBroadcast\(|sendOrderedBroadcast\(|sendStickyBroadcast\(',dat)):
                     c['inf_bro'].append(jfile_path.replace(JS,''))
-
+                if (re.findall('http:\/\/', dat)):
+                    c['insecure_http'].append(jfile_path.replace(JS,''))
 
 
                 fl=jfile_path.replace(JS,'')

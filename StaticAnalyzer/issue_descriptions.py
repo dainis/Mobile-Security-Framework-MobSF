@@ -150,6 +150,10 @@ CODE_ISSUES={
   'log' : [
     'The App logs information. Sensitive information should never be logged.',
     None
+  ],
+  'insecure_http' : [
+    'App uses insecure web addresses to communicate',
+    'Application is using insecure http addresses, request content can be intercepted, using https addresses prevents this'
   ]
 }
 
