@@ -555,7 +555,7 @@ def FormatPermissions(PERMISSIONS):
 
         RET.append({
             "type"            : "permission",
-            "severity"        : PERMISSION_SEVERITY_LOOKUP_TABLE[perms[0]] if perms[0] in PERMISSION_SEVERITY_LOOKUP_TABLE else "warning",
+            "severity"        : perms[0],
             "description"     : ech + " : " + perms[1],
             "longDescription" : perms[2]
         })
@@ -741,8 +741,8 @@ def ManifestAnalysis(mfxml,mainact):
             RET.append({
                 "type" : "unprotectedService",
                 "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["unprotectedService"][0].format(**{"service" : servicename, "perm" : perm}),
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["unprotectedService"][1]
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["unprotectedService"][1].format(**{"service" : servicename, "perm" : perm}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["unprotectedService"][2]
             })
 
     ##APPLICATIONS
@@ -751,32 +751,32 @@ def ManifestAnalysis(mfxml,mainact):
         if application.getAttribute("android:debuggable") == "true":
             RET.append({
                 "type" : "debugEnabled",
-                "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["debugEnabled"][0],
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["debugEnabled"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["debugEnabled"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["debugEnabled"][1],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["debugEnabled"][2]
             })
         if application.getAttribute("android:allowBackup") == "true":
             RET.append({
                 "type" : "backupEnabled",
-                "severity" : "warning",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["backupEnabled"][0],
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["backupEnabled"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["backupEnabled"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["backupEnabled"][1],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["backupEnabled"][2]
             })
         elif application.getAttribute("android:allowBackup") == "false":
             pass
         else:
             RET.append({
                 "type" : "backupFlagMissing",
-                "severity" : "warning",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["backupFlagMissing"][0],
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["backupFlagMissing"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["backupFlagMissing"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["backupFlagMissing"][1],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["backupFlagMissing"][2]
             })
         if application.getAttribute("android:testOnly")== "true":
             RET.append({
                 "type" : "testModeEnabled",
-                "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["testModeEnabled"][0],
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["testModeEnabled"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["testModeEnabled"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["testModeEnabled"][1],
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["testModeEnabled"][2]
             })
         for node in application.childNodes:
             ad=''
@@ -800,18 +800,18 @@ def ManifestAnalysis(mfxml,mainact):
                 item=node.getAttribute("android:name")
                 RET.append({
                     "type" : "taskAffinitySet",
-                    "severity" : "critical",
-                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["taskAffinitySet"][0].format(**{"item" : item}),
-                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["taskAffinitySet"][1]
+                    "severity" : MANIFEST_ISSUE_DESCRIPTIONS["taskAffinitySet"][0],
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["taskAffinitySet"][1].format(**{"item" : item}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["taskAffinitySet"][2]
                 })
             #LaunchMode
             if ((itmname =='Activity' or itmname=='Activity-Alias') and ((node.getAttribute("android:launchMode")=='singleInstance') or (node.getAttribute("android:launchMode")=='singleTask'))):
                 item=node.getAttribute("android:name")
                 RET.append({
                     "type" : "nonStandardLauchMode",
-                    "severity" : "critical",
-                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["nonStandardLauchMode"][0].format(**{"item" : item}),
-                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["nonStandardLauchMode"][1]
+                    "severity" : MANIFEST_ISSUE_DESCRIPTIONS["nonStandardLauchMode"][0],
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["nonStandardLauchMode"][1].format(**{"item" : item}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["nonStandardLauchMode"][2]
                 })
             #Exported Check
             item=''
@@ -829,9 +829,9 @@ def ManifestAnalysis(mfxml,mainact):
 
                     RET.append({
                         "type" : "sharedThing",
-                        "severity" : "severe",
-                        "description" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThing"][0].format(**{"itmname" : itmname, "item" : item, "perm" : perm}),
-                        "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThing"][1].format(**{"ad" : ad, "itmname" : itmname})
+                        "severity" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThing"][0],
+                        "description" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThing"][1].format(**{"itmname" : itmname, "item" : item, "perm" : perm}),
+                        "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThing"][2].format(**{"ad" : ad, "itmname" : itmname})
                     })
             else:
                 isExp=False
@@ -855,9 +855,9 @@ def ManifestAnalysis(mfxml,mainact):
                             EXPORTED.append(item)
                         RET.append({
                             "type" : "sharedThingIntent",
-                            "severity" : "critical",
-                            "description" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThingIntent"][0].format(**{"itmname" : itmname, "item": item}),
-                            "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThingIntent"][1].format(**{"itmname" : itmname, "ad": ad})
+                            "severity" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThingIntent"][0],
+                            "description" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThingIntent"][1].format(**{"itmname" : itmname, "item": item}),
+                            "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["sharedThingIntent"][2].format(**{"itmname" : itmname, "ad": ad})
                         })
 
     ##GRANT-URI-PERMISSIONS
@@ -868,23 +868,23 @@ def ManifestAnalysis(mfxml,mainact):
         if granturi.getAttribute("android:pathPrefix") == '/':
             RET.append({
                 "type" : "contentProviderPerms",
-                "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0].format(**{"path" : "[pathPrefix=/]"}),
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1].format(**{"path" : "[pathPrefix=/]"}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][2]
             })
         elif granturi.getAttribute("android:path") == '/':
             RET.append({
                 "type" : "contentProviderPerms",
-                "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0].format(**{"path" : "[path=/]"}),
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1]
+                "severity" :  MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1].format(**{"path" : "[path=/]"}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][2]
             })
         elif granturi.getAttribute("android:pathPattern") == '*':
             RET.append({
                 "type" : "contentProviderPerms",
-                "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0].format(**{"path" : "[path=*]"}),
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][1].format(**{"path" : "[path=*]"}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["contentProviderPerms"][2]
             })
 
     ##DATA
@@ -893,9 +893,9 @@ def ManifestAnalysis(mfxml,mainact):
             xmlhost = data.getAttribute("android:host")
             RET.append({
                 "type" : "dialerCode",
-                "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["dialerCode"][0].format(**{"xmlhost" : xmlhost}),
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["dialerCode"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["dialerCode"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["dialerCode"][1].format(**{"xmlhost" : xmlhost}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["dialerCode"][2]
             })
         elif data.getAttribute("android:port"):
             dataport = data.getAttribute("android:port")
@@ -903,9 +903,9 @@ def ManifestAnalysis(mfxml,mainact):
             desc = "A binary SMS recevier is configured to listen on a port. Binary SMS messages sent to a device are processed by the application in whichever way the developer choses. The data in this SMS should be properly validated by the application. Furthermore, the application should assume that the SMS being received is from an untrusted source."
             RET.append({
                 "type" : "smsReceiver",
-                "severity" : "critical",
-                "description" : MANIFEST_ISSUE_DESCRIPTIONS["smsReceiver"][0].format(**{"dataport" : dataport}),
-                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["smsReceiver"][1]
+                "severity" : MANIFEST_ISSUE_DESCRIPTIONS["smsReceiver"][0],
+                "description" : MANIFEST_ISSUE_DESCRIPTIONS["smsReceiver"][1].format(**{"dataport" : dataport}),
+                "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["smsReceiver"][2]
             })
 
     ##INTENTS
@@ -916,9 +916,9 @@ def ManifestAnalysis(mfxml,mainact):
             if int(value) > 100:
                 RET.append({
                     "type" : "intentPriority",
-                    "severity" : "warning",
-                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][0].format(**{"value" : value}),
-                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][1]
+                    "severity" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][0],
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][1].format(**{"value" : value}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][2]
                 })
     ##ACTIONS
     for action in actions:
@@ -927,9 +927,9 @@ def ManifestAnalysis(mfxml,mainact):
             if int(value) > 100:
                 RET.append({
                     "type" : "activityPriority",
-                    "severity" : "warning",
-                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][0].format(**{"value" : value}),
-                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][1]
+                    "severity" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][0],
+                    "description" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][1].format(**{"value" : value}),
+                    "longDescription" : MANIFEST_ISSUE_DESCRIPTIONS["intentPriority"][2]
                 })
 
     return RET,EXPORTED
@@ -1187,17 +1187,11 @@ def CodeAnalysis(APP_DIR,MD5,PERMS,TYP):
         if c[k]:
             obj = {
                 "type"            : "codeIssue",
-                "description"     : CODE_ISSUES[k][0],
-                "longDescription" : CODE_ISSUES[k][1],
+                "description"     : CODE_ISSUES[k][1],
+                "longDescription" : CODE_ISSUES[k][2],
+                "severity"        : CODE_ISSUES[k][0],
                 "classes"         : c[k]
             }
-            if (re.findall('d_sqlite|d_con_private|log',k)):
-                obj["severity"] = "info"
-            elif (re.findall('d_rootcheck|dex_cert|dex_tamper|dex_debug|dex_debug_con|dex_debug_key|dex_emulator|dex_root|d_ssl_pin',k)):
-                obj["severity"] = "secure"
-            else:
-                obj["severity"] = "critical"
-
 
             dang.append(obj)
 
